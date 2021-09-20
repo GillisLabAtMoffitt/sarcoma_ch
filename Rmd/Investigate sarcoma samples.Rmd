@@ -1,0 +1,107 @@
+---
+title: "Sarcoma data"
+author: "Christelle Colin-Leitzinger"
+date: '`r Sys.Date()`'
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_collapsed: false
+    theme: united
+    highlight: pygments
+    df_print: paged
+editor_options: 
+  chunk_output_type: console
+---
+
+<style type="text/css">
+
+.figure {
+    margin-top: 100px;
+    margin-bottom: 100px;
+}
+
+table {
+    margin-top: 10px;
+    margin-bottom: 25px !important;
+}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      warning = FALSE,
+                      message = FALSE,
+                      cache = FALSE,
+                      # fig.width = 7, fig.height = 5, 
+                      fig.align='center'#, fig.show='hold'
+                      )
+options(gtsummary.print_engine = "gt")
+options(gtsummary.as_gt.addl_cmds = "gt::tab_options(table.font.size = 14, data_row.padding = gt::px(1))")
+```
+
+```{r library}
+library(tidyverse)
+library(data.table)
+library(VennDiagram)
+library(lubridate)
+library(gtsummary)
+library(viridis)
+```
+
+```{r}
+sarcoma_dna <- read_rds("/Users/colinccm/Documents/GitHub/Gillis/sarcoma_ch/sarcoma_dna.rds")
+sarcoma_info <- read_rds("/Users/colinccm/Documents/GitHub/Gillis/sarcoma_ch/sarcoma_info.rds")
+Chemot <- read_rds("/Users/colinccm/Documents/GitHub/Gillis/sarcoma_ch/Chemot.rds")
+```
+
+# How many sarcoma patients have samples from more than one time/date?
+Are you interested to know if the sample is before or after chemotherapy drug?
+
+```{r}
+sarcoma_dna %>% 
+  distinct(deidentified_patient_id, specimen_collection_date, .keep_all = TRUE) %>% 
+  group_by(deidentified_patient_id) %>% 
+  mutate(sample_count = factor(row_number(deidentified_patient_id))) %>% 
+  ungroup() %>% 
+  arrange(desc(sample_count)) %>% 
+  distinct(deidentified_patient_id, .keep_all = TRUE) %>% 
+  select(sample_count) %>% 
+  tbl_summary()
+```
+`r sarcoma_dna %>% distinct(deidentified_patient_id, specimen_collection_date, .keep_all = TRUE) %>% group_by(deidentified_patient_id) %>% mutate(sample_count = row_number(deidentified_patient_id)) %>% ungroup() %>% filter(sample_count > 1) %>%   distinct(deidentified_patient_id, .keep_all = TRUE) %>% nrow()` patients have multiple samples.
+
+# Summary for Histology and Chemotherapy Drug of patients who have samples from more than one time.
+Multiple histology per patients will be listed if a patient had multiple cancers. For example, "85003 invasive carcinoma of no special type (c50._)" and "88903 leiomyosarcoma nos" for one of a patient I saw. This is why we have a total number of histology in the table = 779 at and not 569.
+```{r}
+sarcoma_dna1 <- sarcoma_dna %>% 
+  distinct(deidentified_patient_id, specimen_collection_date, .keep_all = TRUE) %>% 
+  group_by(deidentified_patient_id) %>% 
+  mutate(sample_count = row_number(deidentified_patient_id)) %>% 
+  ungroup() %>% 
+  filter(sample_count > 1)
+  
+multiple_samples_patient <- paste(sarcoma_dna1$deidentified_patient_id, collapse = "|")
+
+sarcoma_info %>% 
+  filter(str_detect(deidentified_patient_id, multiple_samples_patient)) %>% 
+  select(histology) %>% 
+  tbl_summary(sort = list(everything() ~ "frequency"))
+
+Chemot %>% 
+  filter(str_detect(deidentified_patient_id, multiple_samples_patient)) %>% 
+  mutate_at("treatment", ~ na_if(., "unk drug, 1800 date")) %>% 
+  select(treatment) %>% 
+  tbl_summary(sort = list(everything() ~ "frequency"))
+
+```
+
+The drug summary include all the regimen drugs that patients received.  
+Would you prefer each drug separately - not combined as regimen?
+
+
+
+
+
+
+
+
