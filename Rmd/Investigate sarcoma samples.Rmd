@@ -70,37 +70,121 @@ sarcoma_dna %>%
 ```
 `r sarcoma_dna %>% distinct(deidentified_patient_id, specimen_collection_date, .keep_all = TRUE) %>% group_by(deidentified_patient_id) %>% mutate(sample_count = row_number(deidentified_patient_id)) %>% ungroup() %>% filter(sample_count > 1) %>%   distinct(deidentified_patient_id, .keep_all = TRUE) %>% nrow()` patients have multiple samples.
 
-# Summary for Histology and Chemotherapy Drug of patients who have samples from more than one time.
+# Summary for Histology of patients who have samples from more than one time.
 Multiple histology per patients will be listed if a patient had multiple cancers. For example, "85003 invasive carcinoma of no special type (c50._)" and "88903 leiomyosarcoma nos" for one of a patient I saw. This is why we have a total number of histology in the table = 779 at and not 569.
 ```{r}
-sarcoma_dna1 <- sarcoma_dna %>% 
+multiple_samples_patient <- sarcoma_dna %>% 
   distinct(deidentified_patient_id, specimen_collection_date, .keep_all = TRUE) %>% 
   group_by(deidentified_patient_id) %>% 
   mutate(sample_count = row_number(deidentified_patient_id)) %>% 
   ungroup() %>% 
   filter(sample_count > 1)
   
-multiple_samples_patient <- paste(sarcoma_dna1$deidentified_patient_id, collapse = "|")
+multiple_samples_patient <- paste(multiple_samples_patient$deidentified_patient_id, collapse = "|")
 
-sarcoma_info %>% 
+multiple_samples_dataset <- sarcoma_info %>% 
   filter(str_detect(deidentified_patient_id, multiple_samples_patient)) %>% 
+  left_join(., sarcoma_dna, 
+            by = "deidentified_patient_id")
+
+multiple_samples_dataset %>% 
   select(histology) %>% 
   tbl_summary(sort = list(everything() ~ "frequency"))
-
-Chemot %>% 
-  filter(str_detect(deidentified_patient_id, multiple_samples_patient)) %>% 
-  mutate_at("treatment", ~ na_if(., "unk drug, 1800 date")) %>% 
-  select(treatment) %>% 
-  tbl_summary(sort = list(everything() ~ "frequency"))
-
 ```
 
-The drug summary include all the regimen drugs that patients received.  
-Would you prefer each drug separately - not combined as regimen?
+# Summary for Chemotherapy Drug of patients who have samples from more than one time
+The drug summary include all the regimen drugs that patients received between their first and last samples.  
+
+```{r}
+sarcoma_dna %>% 
+  filter(str_detect(deidentified_patient_id, multiple_samples_patient)) %>% 
+  left_join(., Chemot,
+            by = "deidentified_patient_id") %>% 
+  arrange(deidentified_patient_id, specimen_collection_date) %>% 
+  group_by(deidentified_patient_id) %>% 
+  mutate(first_specimen_date = first(specimen_collection_date)) %>% 
+  mutate(last_specimen_date = last(specimen_collection_date)) %>% 
+  ungroup() %>% 
+  distinct(deidentified_patient_id, treatment_start_date, treatment_end_date, treatment, first_specimen_date, last_specimen_date) %>% 
+  mutate(drugs_between_first_last_sample = case_when(
+    treatment_start_date >= first_specimen_date &
+      treatment_start_date < last_specimen_date        ~ "Yes"
+  )) %>% 
+  filter(drugs_between_first_last_sample == "Yes") %>% 
+  select(treatment) %>% 
+  tbl_summary(sort = list(everything() ~ "frequency"))
+```
+
+ It doesnt' look like a lot of drugs because our data is de-identified and we have `r sarcoma_dna %>% filter(str_detect(deidentified_patient_id, multiple_samples_patient)) %>% left_join(., Chemot, by = "deidentified_patient_id") %>% filter(treatment == "unk drug, 1800 date") %>% distinct(deidentified_patient_id, .keep_all = TRUE) %>% select(treatment) %>% nrow()` patients with at least one unknown date of drug and are excluded from the table above.  
+```{r}
+# sarcoma_dna %>% 
+#   filter(str_detect(deidentified_patient_id, multiple_samples_patient)) %>% 
+#   left_join(., Chemot,
+#             by = "deidentified_patient_id") %>% 
+#   select(treatment) %>% 
+#   tbl_summary(sort = list(everything() ~ "frequency"))
+# 
+# sarcoma_dna %>%
+#   filter(str_detect(deidentified_patient_id, multiple_samples_patient)) %>%
+#   left_join(., Chemot,
+#             by = "deidentified_patient_id") %>%
+#   filter(treatment == "unk drug, 1800 date") %>% distinct(deidentified_patient_id, .keep_all = TRUE) %>% 
+#   select(treatment) %>% nrow()
+```
+
+```{r}
+unk_data <- sarcoma_dna %>%
+  filter(str_detect(deidentified_patient_id, multiple_samples_patient)) %>%
+  left_join(., Chemot,
+            by = "deidentified_patient_id") %>%
+  filter(treatment == "unk drug, 1800 date")
+
+unk_data_patient <- paste(unk_data$deidentified_patient_id, collapse = "|")
 
 
+known_data <- sarcoma_dna %>%
+  filter(str_detect(deidentified_patient_id, multiple_samples_patient)) %>% 
+  left_join(., Chemot,
+            by = "deidentified_patient_id") %>%
+  filter(!str_detect(deidentified_patient_id, unk_data_patient)) %>% 
+  arrange(deidentified_patient_id, specimen_collection_date) %>% 
+  group_by(deidentified_patient_id) %>% 
+  mutate(first_specimen_date = first(specimen_collection_date)) %>% 
+  mutate(last_specimen_date = last(specimen_collection_date)) %>% 
+  ungroup() %>% 
+  distinct(deidentified_patient_id, treatment_start_date, treatment_end_date, treatment, first_specimen_date, last_specimen_date) %>% 
+  mutate(drugs_between_first_last_sample = case_when(
+    treatment_start_date >= first_specimen_date &
+      treatment_start_date < last_specimen_date        ~ "Yes"
+  )) %>% 
+  mutate(interval_between_samples = interval(start = first_specimen_date, end = last_specimen_date)/
+           duration(n=1, units = "days")) %>% 
+  filter(drugs_between_first_last_sample == "Yes")
 
+known_data %>% 
+  distinct(deidentified_patient_id, .keep_all = TRUE) %>% 
+  select(interval_between_samples) %>% 
+  tbl_summary(statistic = list(all_continuous() ~ "{mean} ({min}, {max})"))
+```
 
+If we only include patients with multiple samples for whose we also know ALL their chemotherapy drug information, we can only include `r known_data %>% distinct(deidentified_patient_id) %>% nrow()` patients.  
+Here would be their info on drugs between their first-last samples and histology.
+
+```{r}
+
+known_data %>% 
+  select(treatment) %>% 
+  tbl_summary(sort = list(everything() ~ "frequency"))
+  
+known_data_patient <- paste(known_data$deidentified_patient_id, collapse = "|")
+
+multiple_samples_dataset %>% 
+  filter(str_detect(deidentified_patient_id, known_data_patient)) %>%
+  select(histology) %>% 
+  tbl_summary(sort = list(everything() ~ "frequency"))
+```
+
+Let me know if you want anything alse or if you want to include the patients who have unknown drug date.
 
 
 
