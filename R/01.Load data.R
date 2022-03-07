@@ -15,8 +15,8 @@ Demographic <-
   janitor::clean_names()
 
 sarcoma_DNA <- 
-  readxl::read_xlsx(paste0(path, "/raw data/Copy of Gillis_TransMed query_sarcoma pts_sent 08.16.21.xlsx"),
-                    sheet = "Biospecimens") %>% 
+  readxl::read_xlsx(paste0(path, "/raw data/Sarcoma pts with all blood samples_02.01.22.xlsx"),
+                    sheet = "CSV_Data_export_for_Biospec (2)") %>% 
   janitor::clean_names()
 
 sarcoma_info <- 

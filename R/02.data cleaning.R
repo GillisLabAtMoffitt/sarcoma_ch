@@ -1,4 +1,29 @@
 ################################################################################# II ### Data cleaning
+# DNA, clean and add same sample/same date on the same row
+sarcoma_dna <- sarcoma_DNA %>% 
+  mutate(mrn = as.character(mrn),
+         mrn = coalesce(mrn, party_id)) %>% 
+  mutate_at(c("mrn"), ~str_to_lower(.)) %>% 
+  # Select sample type needed for CH detection
+  filter(collection_site_tissue_type == "Blood", 
+         str_detect(sample_type, "Buffy|Genomic|Unprocessed|CD138|MNC$")) %>% 
+  mutate(across(where(is.character), ~str_to_sentence(.))) %>% 
+  select(mrn, party_id, sample_family_id, sample_id,
+         specimen_collection_date) %>%
+  # add same sample/same date on the same row
+  arrange(mrn, specimen_collection_date) %>% 
+  # Summarize to have 1 sample/day per row and not 1 row for each aliquot of the same sample 
+  group_by(mrn, party_id, sample_family_id, specimen_collection_date) %>% 
+  summarise_at(vars(sample_id), str_c, collapse = "; ") %>%
+  # separate(col = sample_id, paste("sample_id", 1:3, sep="_"), sep = "; ", extra = "drop", fill = "right")
+  ungroup()
+
+write_rds(sarcoma_dna, "sarcoma_dna.rds")
+
+
+# Cancer Characteristics----
+
+
 sarcoma_info <- 
   sarcoma_info %>% 
   distinct() %>% 
@@ -278,216 +303,11 @@ write_rds(Treatment, "Treatment.rds")
 
 
 
-# DNA, clean and add same sample/same date on the same row
-sarcoma_dna <- sarcoma_DNA %>% 
-  filter(derived_tissue_type == "Blood",sample_type != "WBC/RBC") %>% 
-  mutate(deidentified_patient_id = str_to_lower(deidentified_patient_id)) %>% 
-  select(deidentified_patient_id, sample_family_id_sf, sample_id,
-         specimen_collection_date) %>%
-  mutate(specimen_collection_date = as.Date(specimen_collection_date, format = "%Y-%M-%d")) %>%
-  arrange(deidentified_patient_id, specimen_collection_date) %>% 
-  group_by(deidentified_patient_id, sample_family_id_sf, specimen_collection_date) %>% 
-  summarise_at(vars(sample_id), str_c, collapse = "; ") %>%
-  ungroup()
-
-# write_rds(sarcoma_dna, "sarcoma_dna.rds")
-
-sarcoma_dna %>% 
-  distinct(deidentified_patient_id, specimen_collection_date, .keep_all = TRUE) %>% 
-  group_by(deidentified_patient_id) %>% 
-  mutate(sample_count = factor(row_number(deidentified_patient_id))) %>% 
-  ungroup() %>% 
-  arrange(desc(sample_count)) %>% 
-  distinct(deidentified_patient_id, .keep_all = TRUE) %>% 
-  select(sample_count) %>% 
-  tbl_summary()
-
-
-
-
-# sarcoma_dna1 <- sarcoma_dna %>% left_join(., Treatment, by = "deidentified_patient_id") %>% 
-#   mutate(blood_bf_chemo = case_when(
-#     specimen_collection_date <= chemotherapy_start_date_1                ~ "Yes",
-#     specimen_collection_date > chemotherapy_start_date_1                 ~ "No",
-#     is.na(chemotherapy_start_date_1)                                     ~ "not administred",
-#     TRUE                                                            ~ NA_character_
-#   )) %>% 
-#   mutate(blood_bf_hormone = case_when(
-#     specimen_collection_date <= hormone_therapy_start_date_1                ~ "Yes",
-#     specimen_collection_date > hormone_therapy_start_date_1                 ~ "No",
-#     is.na(hormone_therapy_start_date_1)                                     ~ "not administred",
-#     TRUE                                                            ~ NA_character_
-#   )) %>% 
-#   mutate(blood_bf_immuno = case_when(
-#     specimen_collection_date <= immunotherapy_start_date_1                ~ "Yes",
-#     specimen_collection_date > immunotherapy_start_date_1                 ~ "No",
-#     is.na(immunotherapy_start_date_1)                                     ~ "not administred",
-#     TRUE                                                            ~ NA_character_
-#   )) %>% 
-#   mutate(blood_bf_rad = case_when(
-#     specimen_collection_date <= radiation_start_date_1                ~ "Yes",
-#     specimen_collection_date > radiation_start_date_1                 ~ "No",
-#     is.na(radiation_start_date_1)                                     ~ "not administred",
-#     TRUE                                                            ~ NA_character_
-#   )) %>% 
-#   mutate(blood_bf_chemo_rad = case_when(
-#     specimen_collection_date <= chemotherapy_start_date_1 &
-#       specimen_collection_date <= radiation_start_date_1                ~ "Yes",
-#     specimen_collection_date > chemotherapy_start_date_1 |
-#       specimen_collection_date > radiation_start_date_1                 ~ "No",
-#     is.na(chemotherapy_start_date_1) |
-#       is.na(radiation_start_date_1)                                 ~ "not administred",
-#     TRUE                                                            ~ NA_character_
-#   )) %>% 
-#   mutate(blood_bf_treatment = case_when(
-#     specimen_collection_date <= chemotherapy_start_date_1 &
-#       specimen_collection_date <= hormone_therapy_start_date_1 &
-#       specimen_collection_date <= immunotherapy_start_date_1 &
-#       specimen_collection_date <= radiation_start_date_1                ~ "Yes",
-#     if_any(contains("start_date_1"), ~ . < specimen_collection_date)    ~ "No",
-#     # if_all(contains("start_date_1"), ~ . < specimen_collection_date)    ~ "Nope",
-#     is.na(chemotherapy_start_date_1) |
-#       is.na(hormone_therapy_start_date_1) |
-#       is.na(immunotherapy_start_date_1) |
-#       is.na(radiation_start_date_1)                                     ~ "not administred",
-#     TRUE                                                                ~ NA_character_
-#   )) %>% 
-#   mutate(blood_bf_30_days_chemo = case_when(
-#     specimen_collection_date >= (chemotherapy_start_date_1 - days(30)) &
-#       specimen_collection_date <= (chemotherapy_start_date_1 + days(30))              ~ "Yes",
-#     specimen_collection_date > (chemotherapy_start_date_1 + days(30))                 ~ "No",
-#     is.na(chemotherapy_start_date_1)                                     ~ "not administred",
-#     TRUE                                                            ~ NA_character_
-#   )) %>%
-#   mutate(blood_bf_30_days_hormone = case_when(
-#     specimen_collection_date <= (hormone_therapy_start_date_1 + days(30))                ~ "Yes",
-#     specimen_collection_date > (hormone_therapy_start_date_1 + days(30))                 ~ "No",
-#     is.na(hormone_therapy_start_date_1)                                     ~ "not administred",
-#     TRUE                                                            ~ NA_character_
-#   )) %>%
-#   mutate(blood_bf_30_days_immuno = case_when(
-#     specimen_collection_date <= (immunotherapy_start_date_1 + days(30))                ~ "Yes",
-#     specimen_collection_date > (immunotherapy_start_date_1 + days(30))                 ~ "No",
-#     is.na(immunotherapy_start_date_1)                                     ~ "not administred",
-#     TRUE                                                            ~ NA_character_
-#   )) %>%
-#   mutate(blood_bf_30_days_rad = case_when(
-#     specimen_collection_date <= (radiation_start_date_1 + days(30))                ~ "Yes",
-#     specimen_collection_date > (radiation_start_date_1 + days(30))                 ~ "No",
-#     is.na(radiation_start_date_1)                                     ~ "not administred",
-#     TRUE                                                            ~ NA_character_
-#   )) %>%
-#   mutate(blood_bf_30_days_chemo_rad = case_when(
-#     specimen_collection_date <= (chemotherapy_start_date_1 + days(30)) &
-#       specimen_collection_date <= (radiation_start_date_1 + days(30))                ~ "Yes",
-#     specimen_collection_date > (chemotherapy_start_date_1 + days(30)) &
-#       specimen_collection_date > (radiation_start_date_1 + days(30))                 ~ "No",
-#     is.na(chemotherapy_start_date_1) |
-#       is.na(radiation_start_date_1)                                 ~ "not administred",
-#     TRUE                                                            ~ NA_character_
-#   )) %>%
-#   mutate(blood_bf_30_days_treatment = case_when(
-#     specimen_collection_date <= (chemotherapy_start_date_1 + days(30)) &
-#       specimen_collection_date <= (hormone_therapy_start_date_1 + days(30)) &
-#       specimen_collection_date <= (immunotherapy_start_date_1 + days(30)) &
-#       specimen_collection_date <= (radiation_start_date_1 + days(30))                ~ "Yes",
-#     if_any(contains("start_date_1"), ~ (.  + days(30)) < specimen_collection_date)    ~ "No",
-#     # if_all(contains("start_date_1"), ~ . < specimen_collection_date)    ~ "Nope",
-#     is.na(chemotherapy_start_date_1) |
-#       is.na(hormone_therapy_start_date_1) |
-#       is.na(immunotherapy_start_date_1) |
-#       is.na(radiation_start_date_1)                                     ~ "not administred",
-#     TRUE                                                                ~ NA_character_
-#   )) %>%
-#   mutate(across(contains("blood_bf_"), ~ factor(., levels = c("Yes", "No", "not administred")))) %>% 
-# arrange(deidentified_patient_id, specimen_collection_date, blood_bf_treatment) %>% 
-#   group_by(deidentified_patient_id) %>% 
-# 
-# select(deidentified_patient_id, specimen_collection_date, #sample_lag, has_a_good_sample, has_a_good_seq_sample,
-#        "blood_bf_chemo", "blood_bf_hormone", 
-#        "blood_bf_immuno", "blood_bf_rad",
-#        "blood_bf_chemo_rad",
-#        "blood_bf_treatment", everything())
-# 
-# 
-# sarcoma_dna1 %>% filter(chemotherapy_start_date_1 == "1700-01-01") %>% nrow()
-# sarcoma_dna1 %>% filter(hormone_therapy_start_date_1 == "1700-01-01") %>% nrow()
-# sarcoma_dna1 %>% filter(immunotherapy_start_date_1 == "1700-01-01") %>% nrow()
-# sarcoma_dna1 %>% filter(radiation_start_date_1 == "1700-01-01") %>% nrow()
-# sarcoma_dna1 %>% filter(chemotherapy_start_date_1 == "1700-01-01" & 
-#                          radiation_start_date_1 == "1700-01-01") %>% nrow()
-# sarcoma_dna1 %>% filter(chemotherapy_start_date_1 == "1700-01-01" & 
-#                          hormone_therapy_start_date_1 == "1700-01-01" &
-#                          immunotherapy_start_date_1 == "1700-01-01" &
-#                          radiation_start_date_1 == "1700-01-01") %>% nrow()
 
 
 
 
 
-
-# sarcoma_dna2 <- sarcoma_dna1 %>% 
-#   mutate(had_good_sample_chemo = case_when(
-#     blood_bf_chemo == "Yes"              ~ "Yes"
-#   )) %>% 
-#   group_by(deidentified_patient_id) %>% 
-#   fill(had_good_sample_chemo, .direction = "updown") %>% 
-#   mutate(seq_sample_chemo = case_when(
-#     had_good_sample_chemo == "Yes" &
-#       blood_bf_chemo == "No" ~ "Yes",
-#     TRUE ~ "No"
-#   )) %>% 
-#   mutate(had_good_sample_hormone = case_when(
-#     blood_bf_hormone == "Yes"              ~ "Yes"
-#   )) %>% 
-#   group_by(deidentified_patient_id) %>% 
-#   fill(had_good_sample_hormone, .direction = "updown") %>% 
-#   mutate(seq_sample_hormone = case_when(
-#     had_good_sample_hormone == "Yes" &
-#       blood_bf_hormone == "No" ~ "Yes",
-#     TRUE ~ "No"
-#   )) %>% 
-#   mutate(had_good_sample_immuno = case_when(
-#     blood_bf_immuno == "Yes"              ~ "Yes"
-#   )) %>% 
-#   group_by(deidentified_patient_id) %>% 
-#   fill(had_good_sample_immuno, .direction = "updown") %>% 
-#   mutate(seq_sample_immuno = case_when(
-#     had_good_sample_immuno == "Yes" &
-#       blood_bf_immuno == "No" ~ "Yes",
-#     TRUE ~ "No"
-#   )) %>% 
-#   mutate(had_good_sample_rad = case_when(
-#     blood_bf_rad == "Yes"              ~ "Yes"
-#   )) %>% 
-#   group_by(deidentified_patient_id) %>% 
-#   fill(had_good_sample_rad, .direction = "updown") %>% 
-#   mutate(seq_sample_rad = case_when(
-#     had_good_sample_rad == "Yes" &
-#       blood_bf_rad == "No" ~ "Yes",
-#     TRUE ~ "No"
-#   )) %>% 
-#   mutate(had_good_sample_chemo_rad = case_when(
-#     blood_bf_chemo_rad == "Yes"              ~ "Yes"
-#   )) %>% 
-#   group_by(deidentified_patient_id) %>% 
-#   fill(had_good_sample_chemo_rad, .direction = "updown") %>% 
-#   mutate(seq_sample_chemo_rad = case_when(
-#     had_good_sample_chemo_rad == "Yes" &
-#       blood_bf_chemo_rad == "No" ~ "Yes",
-#     TRUE ~ "No"
-#   )) %>% 
-#   mutate(had_good_sample_treatment = case_when(
-#     blood_bf_treatment == "Yes"              ~ "Yes"
-#   )) %>% 
-#   group_by(deidentified_patient_id) %>% 
-#   fill(had_good_sample_treatment, .direction = "updown") %>% 
-#   mutate(seq_sample_treatment = case_when(
-#     had_good_sample_treatment == "Yes" &
-#       blood_bf_treatment == "No" ~ "Yes",
-#     TRUE ~ "No"
-#   )) %>% 
-#   ungroup()
 
 
 
