@@ -10,7 +10,7 @@ library(gtsummary)
 path <- fs::path("", "Volumes", "Gillis_Research","Christelle Colin-Leitzinger", "Sarcoma CH")
 
 Demographic <- 
-  readxl::read_xlsx(paste0(path, "/raw data/Copy of Gillis_TransMed query_sarcoma pts_sent 08.16.21.xlsx"),
+  readxl::read_xlsx(paste0(path, "/raw data/Breast+Sarcoma pts with DNA samples_PHI_01072020.xlsx"),
                     sheet = "PTE Demographics") %>% 
   janitor::clean_names()
 
@@ -20,23 +20,23 @@ sarcoma_DNA <-
   janitor::clean_names()
 
 sarcoma_info <- 
-  readxl::read_xlsx(paste0(path, "/raw data/Copy of Gillis_TransMed query_sarcoma pts_sent 08.16.21.xlsx"),
-                    sheet = "PTE CR") %>% 
+  readxl::read_xlsx(paste0(path, "/raw data/Breast+Sarcoma pts with DNA samples_PHI_01072020.xlsx"),
+                    sheet = "PTE_Cancer Characteristics") %>% 
   janitor::clean_names()
 
 Chemot <- 
-  readxl::read_xlsx(paste0(path, "/raw data/Copy of Gillis_TransMed query_sarcoma pts_sent 08.16.21.xlsx"),
-                    sheet = "Treatment Chemotherapy") %>% 
+  readxl::read_xlsx(paste0(path, "/raw data/Breast+Sarcoma pts with DNA samples_PHI_01072020.xlsx"),
+                    sheet = "Treatment_Chemotherapy") %>% 
   janitor::clean_names()
 
 Immnunot <- 
-  readxl::read_xlsx(paste0(path, "/raw data/Copy of Gillis_TransMed query_sarcoma pts_sent 08.16.21.xlsx"),
-                    sheet = "Treatment Immunotherapy") %>% 
+  readxl::read_xlsx(paste0(path, "/raw data/Breast+Sarcoma pts with DNA samples_PHI_01072020.xlsx"),
+                    sheet = "Treatment_Immuno") %>% 
   janitor::clean_names()
 
 Radiot <- 
-  readxl::read_xlsx(paste0(path, "/raw data/Copy of Gillis_TransMed query_sarcoma pts_sent 08.16.21.xlsx"),
-                    sheet = "Treatment Radiation") %>% 
+  readxl::read_xlsx(paste0(path, "/raw data/Breast+Sarcoma pts with DNA samples_PHI_01072020.xlsx"),
+                    sheet = "Treatment_Radiation") %>% 
   janitor::clean_names()
 
 
