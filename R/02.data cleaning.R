@@ -88,6 +88,8 @@ sarcoma_patients <- sarcoma_dna %>%
   left_join(., Demographic, 
             c("mrn", "party_id", "date_of_birth"))
 
+write_rds(sarcoma_patients, "sarcoma_patients.rds")
+
 sarcoma_patients_id <- paste0(sarcoma_patients$mrn, collapse = "|")
 
 
@@ -607,26 +609,26 @@ write_rds(Treatment, "Treatment.rds")
 
 
 ################################################################################# III ### Merge data
-Global_data <- 
-  left_join(sarcoma_patients, Treatment, by = "mrn") %>% 
-  # Create deidentified IDs
-  mutate(rad = "sarcoma_study_") %>%
-  group_by(mrn) %>% 
-  mutate(id = cur_group_id()) %>%
-  ungroup() %>%
-  mutate(zero = 6 - nchar(id)) %>%
-  mutate(ii = stringi::stri_dup("0", zero)) %>%
-  select(c(rad, ii, id, mrn, everything())) %>%
-  unite(deidentified_patient_id, rad:id, sep = "") %>% 
-  select(c(deidentified_patient_id, mrn, everything(), -zero))
-
-write_rds(Global_data, "Global_data.rds")
-
-blood_patients <- Global_data %>% 
-  # filter to patients who have blood samples
-  filter(!is.na(specimen_collection_date))
-
-write_rds(blood_patients, "blood_patients.rds")
+# Global_data <- 
+#   left_join(sarcoma_patients, Treatment, by = "mrn") %>% 
+#   # Create deidentified IDs
+#   mutate(rad = "sarcoma_study_") %>%
+#   group_by(mrn) %>% 
+#   mutate(id = cur_group_id()) %>%
+#   ungroup() %>%
+#   mutate(zero = 6 - nchar(id)) %>%
+#   mutate(ii = stringi::stri_dup("0", zero)) %>%
+#   select(c(rad, ii, id, mrn, everything())) %>%
+#   unite(deidentified_patient_id, rad:id, sep = "") %>% 
+#   select(c(deidentified_patient_id, mrn, everything(), -zero))
+# 
+# write_rds(Global_data, "Global_data.rds")
+# 
+# blood_patients <- Global_data %>% 
+#   # filter to patients who have blood samples
+#   filter(!is.na(specimen_collection_date))
+# 
+# write_rds(blood_patients, "blood_patients.rds")
 
 
 # End cleaning

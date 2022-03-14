@@ -26,20 +26,7 @@ table {
     margin-bottom: 25px !important;
 }
 
-<!-- table { -->
-<!--   <!-- margin: auto; --> -->
-<!--   border-top: 1px solid #666; -->
-<!--   border-bottom: 1px solid #666; -->
-<!-- } -->
-<!-- table thead th { border-bottom: 1px solid #ddd; } -->
 th, td { padding: 5px; }
-
-<!-- tr:nth-of-type(3n+0) { -->
-<!--   background: red; -->
-<!-- } -->
-<!-- tr:5:nth-child(0n+1) { -->
-<!--   background: red; -->
-<!-- } -->
 
 </style>
 
@@ -67,14 +54,87 @@ library(kableExtra)
 ```
 
 ```{r}
-blood_patients <- 
-  read_rds("/Users/colinccm/Documents/GitHub/Gillis/sarcoma_ch/blood_patients.rds")
+sarcoma_patients <- 
+  read_rds("/Users/colinccm/Documents/GitHub/Gillis/sarcoma_ch/sarcoma_patients.rds")
 
 treatment <- 
-  read_rds("/Users/colinccm/Documents/GitHub/Gillis/sarcoma_ch/treatment_long.rds")
+  read_rds("/Users/colinccm/Documents/GitHub/Gillis/sarcoma_ch/treatment_long.rds") %>% 
+  filter(treatment_type == "chemo")
+
+Global_data <- 
+  inner_join(sarcoma_patients, treatment, by = "mrn") %>% 
+  # Create deidentified IDs
+  mutate(rad = "sarcoma_study_") %>%
+  group_by(mrn) %>% 
+  mutate(id = cur_group_id()) %>%
+  ungroup() %>%
+  mutate(zero = 6 - nchar(id)) %>%
+  mutate(ii = stringi::stri_dup("0", zero)) %>%
+  select(c(rad, ii, id, mrn, everything())) %>%
+  unite(deidentified_patient_id, rad:id, sep = "") %>% 
+  select(c(deidentified_patient_id, mrn, everything(), -zero))
+
+blood_patients <- Global_data %>% 
+  # filter to patients who have blood samples
+  filter(!is.na(specimen_collection_date))
+
+write_rds(blood_patients, "blood_patients_long.rds")
 ```
 
 
+```{r}
+topo_drugs <- "epirubicin|etoposide|doxorubicin|daunorubicin|teniposide|mitoxantrone|amsacrine|actinomycin"
+alk_drugs <- "melphalan|cyclophosphamide|nitrogen mustard|chlorambucil|busulfan|carboplatin|cisplatin|dacarbazine|procarbazine|carmustine|mitomycin|thiotepa|lomustine"
+```
+
+
+```{r}
+blood_patients <- blood_patients %>%
+  group_by(mrn) %>% 
+  mutate(first_chemo_date = first(treatment_start_date)) %>% 
+  mutate(last_chemo_date = last(treatment_start_date)) %>% 
+  
+  mutate(blood_bf_chemo = case_when(
+    specimen_collection_date <= first_chemo_date                         ~ "Yes"
+  )) %>%
+  mutate(blood_af_chemo = case_when(
+    specimen_collection_date > last_chemo_date                           ~ "Yes"
+  )) %>%
+  
+  mutate(blood_bf_topoII = case_when(
+    specimen_collection_date <= treatment_start_date &
+      str_detect(treatment, topo_drugs)                                  ~ "Yes"
+  )) %>%
+  mutate(blood_af_topoII = case_when(
+    specimen_collection_date > treatment_start_date &
+      str_detect(treatment, topo_drugs)                                  ~ "Yes"
+  )) %>%
+  
+  mutate(blood_bf_alk = case_when(
+    specimen_collection_date <= treatment_start_date &
+      str_detect(treatment, alk_drugs)                                  ~ "Yes"
+  )) %>%
+  mutate(blood_af_alk = case_when(
+    specimen_collection_date > treatment_start_date &
+      str_detect(treatment, alk_drugs)                                  ~ "Yes"
+  )) %>%
+  fill(blood_bf_chemo, blood_af_chemo, 
+       blood_bf_topoII, blood_af_topoII,
+       blood_bf_alk, blood_af_alk,
+       .direction = "updown") %>% 
+  ungroup() %>% 
+
+  arrange(mrn, deidentified_patient_id, specimen_collection_date) %>%
+  select(mrn, deidentified_patient_id, specimen_collection_date, 
+         blood_bf_chemo, blood_af_chemo,
+         blood_bf_topoII, blood_af_topoII,
+         blood_bf_alk, blood_af_alk,
+         treatment_start_date, treatment, 
+         first_chemo_date, last_chemo_date,
+         everything())
+```
+
+# Treatment received by Sarcoma patients
 ```{r}
 treatment %>% 
   filter(treatment_type != "radioT") %>% 
@@ -82,46 +142,45 @@ treatment %>%
   select(treatment) %>% 
   tbl_summary()
 ```
+<br>
+<br>
 
-Topoisomerase II inhibitors include etoposide, doxorubicin, teniposide, epirubicin, mitoxantrone.
+# Patients treated with ANY drugs (53 patients)
 
 ```{r}
-# test <- 
-  blood_patients %>% 
-  filter(if_any(starts_with("chemotherapy_drug"),  ~ str_detect(., "epirubicin|etoposide|doxorubicin|teniposide|mitoxantrone")
-  )) %>% 
-  select(deidentified_patient_id, starts_with("chemotherapy_drug"))
-  
-
-
-
-
-
+blood_patients %>% 
+  filter(blood_bf_chemo == "Yes" & blood_af_chemo == "Yes") %>% 
+  distinct(deidentified_patient_id, .keep_all = TRUE) %>%
+  select(deidentified_patient_id) %>%
+  purrr::keep(~!all(is.na(.)))
 ```
 
 
-<!-- ```{r} -->
-<!-- blood_patients <- blood_patients %>%  -->
-<!--   mutate(blood_bf_chemo = case_when( -->
-<!--     pecimen_collection_date <= (chemotherapy_start_date_1 + days(5)) & -->
-<!--       (specimen_collection_date <= radiation_start_date_1 | -->
-<!--       is.na(radiation_start_date_1))                                     ~ "Before TI", -->
+# Patients treated with Topoisomerase II inhibitors (2 patients)
 
-<!--     specimen_collection_date <= (chemotherapy_start_date_1 + days(5)) & -->
-<!--       (specimen_collection_date <= radiation_start_date_1 | -->
-<!--       is.na(radiation_start_date_1))                                     ~ "Yes", -->
-<!--     specimen_collection_date > chemotherapy_start_date_1                 ~ "No", -->
-<!--     is.na(chemotherapy_start_date_1)                                     ~ "not administred", -->
-<!--     TRUE                                                                 ~ "No" -->
-<!--   )) %>%  -->
+Topoisomerase II inhibitors include etoposide, doxorubicin, daunorubicin, teniposide, epirubicin, mitoxantrone, amsacrine, actinomycin.
+```{r}
+blood_patients %>% 
+  filter(blood_bf_topoII == "Yes" & blood_af_topoII == "Yes") %>% 
+  distinct(deidentified_patient_id, .keep_all = TRUE) %>%
+  select(deidentified_patient_id) %>%
+  purrr::keep(~!all(is.na(.)))
+```
+<br>
+<br>
 
-<!--   mutate(across(contains("blood_bf_"), ~ factor(., levels = c("Yes", "No", "not administred")))) %>%  -->
+# Patients treated with Alkylating agents (64 patients)
 
-<!--   arrange(mrn, deidentified_patient_id, specimen_collection_date) %>%  -->
-<!--   select(mrn, deidentified_patient_id, specimen_collection_date, #sample_lag, has_a_good_sample, has_a_good_seq_sample, -->
-<!--          "blood_bf_chemo", -->
-<!--          everything()) -->
-<!-- ``` -->
+Alkylating agents include melphalan, cyclophosphamide, nitrogen mustard, chlorambucil, busulfan, carboplatin, cisplatin, dacarbazine, procarbazine, carmustine, mitomycin, thiotepa, lomustine.
+```{r}
+blood_patients %>% 
+  filter(blood_bf_alk == "Yes" & blood_af_alk == "Yes") %>% 
+  distinct(deidentified_patient_id, .keep_all = TRUE) %>%
+  select(deidentified_patient_id) %>%
+  purrr::keep(~!all(is.na(.)))
+```
+
+
 
 
 <!-- ```{r code pre and sequential} -->
