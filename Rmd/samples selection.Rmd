@@ -109,6 +109,11 @@ blood_patients <- blood_patients %>%
     specimen_collection_date > treatment_start_date &
       str_detect(treatment, topo_drugs)                                  ~ "Yes"
   )) %>%
+  mutate(blood_during_topoII = case_when(
+    specimen_collection_date > treatment_start_date &
+      specimen_collection_date > treatment_end_date &
+      str_detect(treatment, topo_drugs)                                  ~ "Yes"
+  )) %>%
   
   mutate(blood_bf_alk = case_when(
     specimen_collection_date <= treatment_start_date &
@@ -128,6 +133,7 @@ blood_patients <- blood_patients %>%
   select(mrn, deidentified_patient_id, specimen_collection_date, 
          blood_bf_chemo, blood_af_chemo,
          blood_bf_topoII, blood_af_topoII,
+         blood_during_topoII,
          blood_bf_alk, blood_af_alk,
          treatment_start_date, treatment, 
          first_chemo_date, last_chemo_date,
@@ -145,268 +151,59 @@ treatment %>%
 <br>
 <br>
 
-# Patients treated with ANY drugs (53 patients)
+<!-- # Patients treated with ANY drugs (53 patients) -->
 
-```{r}
-blood_patients %>% 
-  filter(blood_bf_chemo == "Yes" & blood_af_chemo == "Yes") %>% 
-  distinct(deidentified_patient_id, .keep_all = TRUE) %>%
-  select(deidentified_patient_id) %>%
-  purrr::keep(~!all(is.na(.)))
-```
+<!-- ```{r} -->
+<!-- blood_patients %>%  -->
+<!--   filter(blood_bf_chemo == "Yes" & blood_af_chemo == "Yes") %>%  -->
+<!--   distinct(deidentified_patient_id, .keep_all = TRUE) %>% -->
+<!--   select(deidentified_patient_id) %>% -->
+<!--   purrr::keep(~!all(is.na(.))) -->
+<!-- ``` -->
 
 
-# Patients treated with Topoisomerase II inhibitors (2 patients)
+# Patients with samples after or during treated with Topoisomerase II inhibitors (22 patients)
 
 Topoisomerase II inhibitors include etoposide, doxorubicin, daunorubicin, teniposide, epirubicin, mitoxantrone, amsacrine, actinomycin.
 ```{r}
 blood_patients %>% 
-  filter(blood_bf_topoII == "Yes" & blood_af_topoII == "Yes") %>% 
-  distinct(deidentified_patient_id, .keep_all = TRUE) %>%
-  select(deidentified_patient_id) %>%
+  filter(blood_af_topoII == "Yes") %>% 
+  select(deidentified_patient_id, treatment_line, treatment) %>% 
+  # pivot_wider(id_cols = c(deidentified_patient_id),
+  #             names_from = treatment_line, 
+  #             values_from = treatment) %>% 
+  group_by(deidentified_patient_id) %>% 
+  summarise_at(vars(treatment), str_c, collapse = "!") %>% 
+  ungroup() %>% 
+  separate(treatment, paste("regimen", 1:10, sep = "_"), 
+           sep = "!", remove = TRUE, 
+           extra = "warn", fill = "right") %>%
   purrr::keep(~!all(is.na(.)))
 ```
-<br>
-<br>
 
-# Patients treated with Alkylating agents (64 patients)
-
-Alkylating agents include melphalan, cyclophosphamide, nitrogen mustard, chlorambucil, busulfan, carboplatin, cisplatin, dacarbazine, procarbazine, carmustine, mitomycin, thiotepa, lomustine.
+# Patients with samples during treated with Topoisomerase II inhibitors (13 patients)
 ```{r}
 blood_patients %>% 
-  filter(blood_bf_alk == "Yes" & blood_af_alk == "Yes") %>% 
-  distinct(deidentified_patient_id, .keep_all = TRUE) %>%
-  select(deidentified_patient_id) %>%
+  filter(blood_during_topoII == "Yes") %>% 
+  select(deidentified_patient_id, treatment_line, treatment) %>% 
+  group_by(deidentified_patient_id) %>% 
+  summarise_at(vars(treatment), str_c, collapse = "!") %>% 
+  ungroup() %>% 
+  separate(treatment, paste("regimen", 1:10, sep = "_"), 
+           sep = "!", remove = TRUE, 
+           extra = "warn", fill = "right") %>%
   purrr::keep(~!all(is.na(.)))
 ```
+<br>
+<br>
 
+<!-- # Patients treated with Alkylating agents (64 patients) -->
 
-
-
-<!-- ```{r code pre and sequential} -->
-<!-- blood_patients2 <- blood_patients %>%  -->
-<!--   ###### Chemo samples ---- -->
-<!--   mutate(had_good_sample_chemo = case_when( -->
-<!--     blood_bf_chemo == "Yes"                    ~ "Yes" -->
-<!--   )) %>% -->
-<!--   group_by(deidentified_patient_id, had_good_sample_chemo) %>% -->
-<!--   mutate(closest_chemo_presample_date = case_when( -->
-<!--     had_good_sample_chemo == "Yes"            ~ last(specimen_collection_date) -->
-<!--   )) %>% -->
-<!--   mutate(interval_presample_chemo = case_when( -->
-<!--     closest_chemo_presample_date == specimen_collection_date  ~  -->
-<!--       (interval(start = closest_chemo_presample_date, end = chemotherapy_start_date_1) / -->
-<!--                  duration(n = 1, units = "days")) -->
-<!--   )) %>% -->
-<!--   mutate(presample_id_chemo = case_when( -->
-<!--     !is.na(interval_presample_chemo)       ~ sample_id -->
-<!--   )) %>%  -->
-<!--   mutate(presample_date_chemo = case_when( -->
-<!--     !is.na(presample_id_chemo)                                     ~ specimen_collection_date -->
-<!--   )) %>%  -->
-
-<!--   # Find sequential samples -->
-<!--   mutate(presample_chemo_within_limits = had_good_sample_chemo) %>%  -->
-<!--   group_by(deidentified_patient_id) %>% -->
-<!--   fill(presample_chemo_within_limits, #interval_presample_chemo, -->
-<!--        closest_chemo_presample_date, .direction = "updown") %>% -->
-<!--   mutate(seq_sample_chemo = case_when( -->
-<!--     presample_chemo_within_limits == "Yes" & -->
-<!--       blood_bf_chemo == "No" & -->
-<!--       specimen_collection_date >= chemotherapy_end_date1_1 & -->
-<!--       specimen_collection_date <= (chemotherapy_start_date_1 + days(365)) & -->
-<!--       (specimen_collection_date <= radiation_start_date_1 | -->
-<!--       is.na(radiation_start_date_1))                                ~ "Yes", -->
-<!--     TRUE                                                            ~ "No" -->
-<!--   )) %>% -->
-<!--   group_by(mrn, seq_sample_chemo) %>%  -->
-<!--   mutate(is_first_seq_sample = case_when( -->
-<!--     seq_sample_chemo == "Yes" & -->
-<!--     specimen_collection_date == first(specimen_collection_date)     ~ "Yes", -->
-<!--     TRUE                                                            ~ "No" -->
-<!--   )) %>%  -->
-<!--   ungroup() %>%  -->
-
-<!--   mutate(seqsample_id_chemo = case_when( -->
-<!--     is_first_seq_sample == "Yes"                                    ~ sample_id -->
-<!--   )) %>%  -->
-
-<!--   mutate(seqsample_date_chemo = case_when( -->
-<!--     !is.na(seqsample_id_chemo)                                     ~ specimen_collection_date -->
-<!--   )) %>%  -->
-<!--   mutate(seqsample_before_2nd_regimen = case_when( -->
-<!--     !is.na(seqsample_id_chemo) & -->
-<!--       specimen_collection_date <= chemotherapy_start_date_2        ~ "sample before 2nd regimen", -->
-<!--     !is.na(seqsample_id_chemo) & -->
-<!--       specimen_collection_date > chemotherapy_start_date_2         ~ "sample after" -->
-<!--   )) %>%  -->
-<!--   mutate(have_good_seqsample_chemo = case_when( -->
-<!--     seq_sample_chemo == "Yes"                                       ~ "Yes" -->
-<!--   )) %>%  -->
-<!--   fill(have_good_seqsample_chemo, .direction = "updown") %>%  -->
-<!--   mutate(time_chemo_seqsample = case_when( -->
-<!--     seq_sample_chemo == "Yes"        ~ ( -->
-<!--       interval(start = chemotherapy_start_date_1, end = specimen_collection_date) / -->
-<!--         duration(n= 1, units = "days") -->
-<!--     ))) %>% -->
-<!--   mutate(interval_prepost_sample_chemo = case_when( -->
-<!--     !is.na(seqsample_id_chemo)                                     ~ -->
-<!--       abs(interval(start = closest_chemo_presample_date, end = specimen_collection_date) / -->
-<!--                  duration(n = 1, units = "days")) -->
-<!--   )) -->
-<!-- ``` -->
-
-<!-- # I. Data Exploration -->
-
-
-<!-- # II. Table patients with Blood before and after treatment -->
+<!-- Alkylating agents include melphalan, cyclophosphamide, nitrogen mustard, chlorambucil, busulfan, carboplatin, cisplatin, dacarbazine, procarbazine, carmustine, mitomycin, thiotepa, lomustine. -->
 <!-- ```{r} -->
-<!-- tbl1_1 <- blood_patients2 %>%  -->
-<!--   distinct(deidentified_patient_id, .keep_all = TRUE) %>%  -->
-<!--   select(Chemotherapy = presample_chemo_within_limits) %>%  -->
-<!--   tbl_summary(statistic = list(all_categorical() ~ "{n}")) %>%  -->
-<!--   modify_header(update = list( -->
-<!--   stat_0 ~ '**Patients with Blood before Treatment**' -->
-<!-- )) -->
-
-
-<!-- tbl1_2 <- blood_patients2 %>%  -->
-<!--   filter(is.na(seqsample_id_Achemorad) & !is.na(seqsample_id_chemo)) %>% -->
-
-<!--   distinct(deidentified_patient_id, .keep_all = TRUE) %>%  -->
-<!--   select(Chemotherapy = seq_sample_chemo) %>%  -->
-<!--   tbl_summary(statistic = list(all_categorical() ~ "{n}")) %>%  -->
-<!--   modify_header(update = list( -->
-<!--   stat_0 ~ '**Patients with Sequential Blood after Treatment(s)**' -->
-<!-- )) -->
-
-<!-- tbl_s1 <- tbl_merge(list(tbl1_1, tbl1_2)) -->
-
-<!-- tbl_s1 %>% -->
-<!--    modify_header(list(label ~ "**Treatment Type**")) %>%  -->
-<!--   modify_spanning_header(everything() ~ NA_character_) %>% as_gt() %>%   -->
-<!--   gt::tab_source_note(gt::md("*The number of patients with a blood sample before each treatment type is located  -->
-<!--                              in the first column. <br>  -->
-<!--                              From this number, the second column represent the number of patients with a blood  -->
-<!--                              sample after each treatment type*")) -->
-
-<!-- ``` -->
-
-<!-- # III. Chemo group -->
-<!-- ```{r} -->
-<!-- chemo_patients <- blood_patients2 %>%  -->
-<!--   filter(is.na(seqsample_id_Achemorad) & !is.na(seqsample_id_chemo)) -->
-
-<!-- chemo_patients <- blood_patients2 %>% -->
-<!--   filter( -->
-<!--     str_detect( -->
-<!--       deidentified_patient_id,  -->
-<!--       paste0(chemo_patients$deidentified_patient_id, collapse = "|"))) -->
-<!-- ``` -->
-
-
-
-<!-- ```{r} -->
-<!-- chemo_patients <- chemo_patients %>%  -->
-<!--   group_by(deidentified_patient_id) %>%  -->
-<!--   mutate(sequential_sample_count = factor(row_number(deidentified_patient_id))) %>%  -->
-<!--   ungroup() %>%  -->
-<!--   mutate(chemo_stop_T2 = interval(start = chemotherapy_end_date1_1, end = seqsample_date_chemo)/ -->
-<!--              duration(n=1, units = "days")) %>%  -->
-<!--   mutate(ID = dense_rank(deidentified_patient_id)) -->
-
-<!-- df <- chemo_patients %>% -->
-<!--   select(deidentified_patient_id, ID, -->
-<!--          "number post treatment sample"  = sequential_sample_count,  -->
-<!--          "days from pre sample to chemo start" = interval_presample_chemo, -->
-<!--          chemo_stop_T2, -->
-<!--          seqsample_before_2nd_regimen, -->
-<!--          "days from chemo start to sequential sample" =  time_chemo_seqsample) -->
-
-<!-- color.me1 <- which((df$ID %% 2)  == 1) -->
-<!-- # color.me <- which(df$`number post treatment sample` == 2) -->
-<!-- # color.me.bold <- which((df$ID %% 2)  == 1) -->
-<!-- color.me.pre <- which(df$`number post treatment sample` == 1) -->
-<!-- color.me.seq1 <- which(df$`number post treatment sample` == 2) -->
-
-
-<!-- df %>% select(-ID) %>%  -->
-<!--   kable(booktabs = T, align = "ccl") %>% -->
-<!--   # kable_styling(latex_options = "striped", stripe_color = "red") #%>% -->
-<!--   # row_spec(color.me, background = "#eee") %>% -->
-<!--   row_spec(color.me1, background = "#eee") %>% -->
-<!--   row_spec(color.me.pre, color = "blue") %>% -->
-<!--   row_spec(color.me.seq1, color = "red") -->
-
-<!-- df1 <- df %>% filter(!is.na(`days from pre sample to chemo start`)) %>%  -->
-<!--   distinct(deidentified_patient_id, .keep_all = TRUE) %>%  -->
-<!--   summarize(mean = round(mean(`days from pre sample to chemo start`),2), -->
-<!--             median = round(median(`days from pre sample to chemo start`),2)) -->
-
-<!-- df <- df %>% filter(!is.na(`days from chemo start to sequential sample`)) %>%  -->
-<!--   distinct(deidentified_patient_id, .keep_all = TRUE) %>%  -->
-<!--   summarize(mean = round(mean(`days from chemo start to sequential sample`),2), -->
-<!--             median = round(median(`days from chemo start to sequential sample`),2)) -->
-<!-- ``` -->
-
-
-<!-- <br> -->
-
-<!-- ## 5.List chemotherapy drugs (first regimen)  -->
-
-<!-- ```{r} -->
-<!-- chemo_patients %>%  -->
-<!--   distinct(deidentified_patient_id, .keep_all = TRUE) %>%  -->
-<!--   select(chemotherapy_drug_1) %>%  -->
-<!--   tbl_summary(sort = list(everything() ~ "frequency")) -->
-
-<!-- chemo_patients %>%  -->
-<!--   distinct(deidentified_patient_id, .keep_all = TRUE) %>%  -->
-<!--   filter(chemotherapy_drug_1 == "adriamycin; cyclophosphamide; paclitaxel") %>%  -->
-<!--   select(chemotherapy_drug_1, line_gap_1) -->
-
-<!-- chemo_patients %>%  -->
-<!--   distinct(deidentified_patient_id, .keep_all = TRUE) %>%  -->
-<!--   filter(chemotherapy_drug_1 == "5 fu; cyclophosphamide; epirubicin; docetaxel") %>%  -->
-<!--   select(chemotherapy_drug_1, line_gap_1) -->
-<!-- ``` -->
-
-<!-- ## 6.Patients list -->
-<!-- ```{r} -->
-<!-- chemo_patients %>%  -->
-<!--   distinct(deidentified_patient_id, .keep_all = TRUE) %>%  -->
-<!--   select(deidentified_patient_id, age_at_diagnosis) -->
-
-<!-- # chemo_patients %>% -->
-<!-- #   select(deidentified_patient_id, -->
-<!-- #          presample_id_chemo, -->
-<!-- #          presample_date_chemo, -->
-<!-- #          seqsample_id_chemo, -->
-<!-- #          seqsample_date_chemo, -->
-<!-- #          seqsample_before_2nd_regimen, -->
-<!-- #          chemo_stop_T2, time_chemo_seqsample, -->
-<!-- #          chemotherapy_start_date_1, chemotherapy_end_date1_1, -->
-<!-- #          chemotherapy_drug_1) %>% -->
-<!-- #   group_by(deidentified_patient_id) %>% -->
-<!-- #   fill(everything(), .direction = "updown") %>% -->
-<!-- #   distinct() %>% -->
-<!-- #   kbl() %>% -->
-<!-- #   kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% -->
-<!-- #   scroll_box(width = "100%") -->
-<!-- #  -->
-<!-- # a <- chemo_patients %>% -->
-<!-- #   filter(!is.na(presample_id_chemo) | !is.na(seqsample_id_chemo)) %>%  -->
-<!-- #   select(mrn, deidentified_patient_id, -->
-<!-- #          presample_id_chemo, -->
-<!-- #          presample_date_chemo, -->
-<!-- #          interval_presample_chemo, -->
-<!-- #          seqsample_id_chemo, -->
-<!-- #          seqsample_date_chemo, -->
-<!-- #          time_chemo_seqsample, -->
-<!-- #          chemotherapy_start_date_1, chemotherapy_end_date1_1, -->
-<!-- #          chemotherapy_drug_1) %>% -->
-<!-- #   group_by(deidentified_patient_id) %>% -->
-<!-- #   fill(everything(), .direction = "updown") %>% -->
-<!-- #   distinct() -->
-<!-- # write_csv(a, "Samples list chemotherapy group in breast patients 03012022.csv") -->
+<!-- blood_patients %>%  -->
+<!--   filter(blood_bf_alk == "Yes" & blood_af_alk == "Yes") %>%  -->
+<!--   distinct(deidentified_patient_id, .keep_all = TRUE) %>% -->
+<!--   select(deidentified_patient_id) %>% -->
+<!--   purrr::keep(~!all(is.na(.))) -->
 <!-- ``` -->
