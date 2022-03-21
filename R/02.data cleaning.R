@@ -6,7 +6,7 @@ sarcoma_dna <- sarcoma_DNA %>%
   mutate_at(c("mrn"), ~str_to_lower(.)) %>% 
   # Select sample type needed for CH detection
   filter(collection_site_tissue_type == "Blood", 
-         str_detect(sample_type, "Buffy|Genomic|Unprocessed|CD138|MNC$")) %>% 
+         str_detect(sample_type, "Buffy|Unprocessed")) %>% # "Buffy|Genomic|Unprocessed|CD138|MNC$"
   mutate(across(where(is.character), ~str_to_sentence(.))) %>% 
   select(mrn, party_id, sample_family_id, sample_id,
          specimen_collection_date, gender_cancer_registry) %>%
@@ -88,7 +88,7 @@ sarcoma_patients <- sarcoma_dna %>%
   left_join(., Demographic, 
             c("mrn", "party_id", "date_of_birth"))
 
-write_rds(sarcoma_patients, "sarcoma_patients.rds")
+write_rds(sarcoma_patients, "sarcoma_patients limited blood samples type.rds")
 
 sarcoma_patients_id <- paste0(sarcoma_patients$mrn, collapse = "|")
 
