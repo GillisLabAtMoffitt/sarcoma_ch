@@ -63,7 +63,7 @@ treatment <-
 
 Global_data <- 
   inner_join(sarcoma_patients %>% 
-               distinct(mrn, specimen_collection_date), 
+               distinct(mrn, specimen_collection_date, sample_type), 
              treatment, by = "mrn") %>% 
   # Create deidentified IDs
   mutate(rad = "sarcoma_study_") %>%
@@ -193,11 +193,13 @@ Topoisomerase II inhibitors include etoposide, doxorubicin, daunorubicin, tenipo
 ```{r}
 samples <- blood_patients %>% 
   filter(blood_af_topoII == "Yes" | blood_during_topoII == "Yes") %>%
-  select(deidentified_patient_id, blood_bf_topoII, blood_during_topoII, blood_af_topoII, days_from_presample_to_topo, days_from_topo_to_seqsample, treatment) %>% 
+  select(deidentified_patient_id, sample_type, blood_bf_topoII, blood_during_topoII, 
+         blood_af_topoII, days_from_presample_to_topo, days_from_topo_to_seqsample, treatment) %>% 
   # pivot_wider(id_cols = c(deidentified_patient_id),
   #             names_from = treatment_line, 
   #             values_from = treatment) %>% 
-  group_by(deidentified_patient_id, blood_bf_topoII, blood_af_topoII, blood_during_topoII, days_from_presample_to_topo, days_from_topo_to_seqsample) %>% 
+  group_by(deidentified_patient_id, sample_type, blood_bf_topoII, blood_af_topoII,
+           blood_during_topoII, days_from_presample_to_topo, days_from_topo_to_seqsample) %>% 
   summarise_at(vars(treatment), str_c, collapse = "!") %>% 
   ungroup() %>% 
   separate(treatment, paste("regimen", 1:2, sep = "_"), 

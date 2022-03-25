@@ -8,13 +8,13 @@ sarcoma_dna <- sarcoma_DNA %>%
   filter(collection_site_tissue_type == "Blood", 
          str_detect(sample_type, "Buffy|Unprocessed")) %>% # "Buffy|Genomic|Unprocessed|CD138|MNC$"
   mutate(across(where(is.character), ~str_to_sentence(.))) %>% 
-  select(mrn, party_id, sample_family_id, sample_id,
+  select(mrn, party_id, sample_family_id, sample_id, sample_type,
          specimen_collection_date, gender_cancer_registry) %>%
   # add same sample/same date on the same row
   arrange(mrn, specimen_collection_date) %>% 
   # Summarize to have 1 sample/day per row and not 1 row for each aliquot of the same sample 
   group_by(mrn, party_id, sample_family_id, specimen_collection_date, gender_cancer_registry) %>% 
-  summarise_at(vars(sample_id), str_c, collapse = "; ") %>%
+  summarise_at(vars(sample_id, sample_type), str_c, collapse = "; ") %>%
   # separate(col = sample_id, paste("sample_id", 1:3, sep="_"), sep = "; ", extra = "drop", fill = "right")
   ungroup()
 
