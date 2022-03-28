@@ -93,16 +93,17 @@ alk_drugs <- "melphalan|cyclophosphamide|nitrogen mustard|chlorambucil|busulfan|
 ```{r}
 blood_patients <- blood_patients %>%
   group_by(mrn) %>% 
-  mutate(first_chemo_date = first(treatment_start_date)) %>% 
-  mutate(last_chemo_date = last(treatment_start_date)) %>% 
+  # mutate(first_chemo_date = first(treatment_start_date)) %>% 
+  # mutate(last_chemo_date = last(treatment_start_date)) %>% 
 
-  mutate(blood_bf_chemo = case_when(
-    specimen_collection_date <= first_chemo_date                         ~ "Yes"
-  )) %>%
-  mutate(blood_af_chemo = case_when(
-    specimen_collection_date > last_chemo_date                           ~ "Yes"
-  )) %>%
+  # mutate(blood_bf_chemo = case_when(
+  #   specimen_collection_date <= first_chemo_date                         ~ "Yes"
+  # )) %>%
+  # mutate(blood_af_chemo = case_when(
+  #   specimen_collection_date > last_chemo_date                           ~ "Yes"
+  # )) %>%
   
+  # Topoisomerase II
   mutate(blood_bf_topoII = case_when(
     specimen_collection_date <= treatment_start_date &
       str_detect(treatment, topo_drugs)                                  ~ "Yes"
@@ -121,7 +122,9 @@ blood_patients <- blood_patients %>%
        .direction = "updown") %>%
   ungroup() %>% 
   mutate(blood_af_topoII = case_when(
-    specimen_collection_date > treatment_start_date &
+    (specimen_collection_date > presample_date_topo |
+       is.na(presample_date_topo)) &
+      specimen_collection_date > treatment_start_date &
       str_detect(treatment, topo_drugs)                                  ~ "Yes"
   )) %>%
   mutate(blood_during_topoII = case_when(
@@ -132,6 +135,7 @@ blood_patients <- blood_patients %>%
   select(mrn, deidentified_patient_id, specimen_collection_date, 
          blood_bf_topoII, blood_af_topoII, blood_during_topoII, treatment, everything()) %>% 
   
+  # Alkylant agents
   mutate(blood_bf_alk = case_when(
     specimen_collection_date <= treatment_start_date &
       str_detect(treatment, alk_drugs)                                  ~ "Yes"
@@ -151,6 +155,7 @@ blood_patients <- blood_patients %>%
        .direction = "updown") %>%
   ungroup() %>%
   mutate(blood_af_alk = case_when(
+    specimen_collection_date > presample_date_alk &
     specimen_collection_date > treatment_start_date &
     specimen_collection_date > treatment_end_date &
       str_detect(treatment, alk_drugs)                                  ~ "Yes"
