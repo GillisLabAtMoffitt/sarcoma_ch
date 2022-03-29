@@ -577,10 +577,16 @@ Radiot <- Radiot %>%
 
 # Combine
 treatment <- bind_rows(Chemot, Immnunot, Radiot) %>% 
+  left_join(., sarcoma_patients %>% 
+              select(mrn, date_of_diagnosis1), 
+            by = "mrn") %>% 
+  filter(treatment_start_date > date_of_diagnosis1) %>% 
   arrange(mrn, treatment_start_date) %>% 
   group_by(mrn, treatment_type) %>% 
   mutate(treatment_line = row_number(mrn)) %>% 
-  unite(treatment_line, c(treatment_type, treatment_line), sep = "_", remove = FALSE)
+  unite(treatment_line, c(treatment_type, treatment_line), sep = "_", remove = FALSE) %>% 
+  select(-date_of_diagnosis1)
+    
 
 write_rds(treatment, "treatment_long.rds")
 
