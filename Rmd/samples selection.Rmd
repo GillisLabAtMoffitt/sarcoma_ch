@@ -94,15 +94,30 @@ alk_drugs <- "melphalan|cyclophosphamide|nitrogen mustard|chlorambucil|busulfan|
 ```{r}
 blood_patients <- blood_patients %>%
   group_by(mrn) %>% 
-  # mutate(first_chemo_date = first(treatment_start_date)) %>% 
-  # mutate(last_chemo_date = last(treatment_start_date)) %>% 
+  mutate(first_chemo_date = first(treatment_start_date)) %>%
+  mutate(last_chemo_date = last(treatment_start_date)) %>%
 
-  # mutate(blood_bf_chemo = case_when(
-  #   specimen_collection_date <= first_chemo_date                         ~ "Yes"
-  # )) %>%
-  # mutate(blood_af_chemo = case_when(
-  #   specimen_collection_date > last_chemo_date                           ~ "Yes"
-  # )) %>%
+  mutate(blood_bf_chemo = case_when(
+    specimen_collection_date <= treatment_start_date &
+      treatment_line == "chemo_1"                                        ~ "Yes"
+  )) %>%
+  mutate(have_good_presample_chemo = blood_bf_chemo,
+         presample_date_chemo = case_when(
+           blood_bf_chemo == "Yes"                                      ~ specimen_collection_date
+         )) %>% 
+  mutate(days_from_presample_to_chemo = case_when(
+    blood_bf_chemo == "Yes"                                             ~ interval(
+      start = specimen_collection_date, end = treatment_start_date) /
+      duration(n= 1, units = "days")
+  )) %>% 
+  fill(have_good_presample_chemo, presample_date_chemo,
+       days_from_presample_to_chemo,
+       .direction = "updown") %>%
+
+  mutate(blood_af_chemo = case_when(
+    specimen_collection_date > treatment_end_date &
+      treatment_line == "chemo_1"                                        ~ "Yes"
+  )) %>%
   
   # Topoisomerase II
   mutate(blood_bf_topoII = case_when(
@@ -206,15 +221,22 @@ blood_patients <- blood_patients %>%
 <!-- <br> -->
 <!-- <br> -->
 
-<!-- # Patients treated with ANY drugs (53 patients) -->
+# Patients treated with ANY drugs
 
-<!-- ```{r} -->
-<!-- blood_patients %>%  -->
-<!--   filter(blood_bf_chemo == "Yes" & blood_af_chemo == "Yes") %>%  -->
-<!--   distinct(deidentified_patient_id, .keep_all = TRUE) %>% -->
-<!--   select(deidentified_patient_id) %>% -->
-<!--   purrr::keep(~!all(is.na(.))) -->
-<!-- ``` -->
+```{r}
+samples_chemo <- blood_patients %>%
+  filter(have_good_presample_chemo == "Yes" & blood_af_chemo == "Yes") %>%
+  select(mrn, deidentified_patient_id, 
+         date_of_diagnosis1, sample_type, 
+         have_good_presample_chemo, blood_af_chemo, 
+         days_from_presample_to_chemo,
+         days_from_drugsend_to_after_sample, treatment, 
+         treatment_start_date, treatment_end_date, 
+         duration_of_treatment) %>% 
+  distinct(mrn, .keep_all = TRUE)
+
+write_csv(samples_chemo, "list of samples chemo.csv")
+```
 
 
 # Patients with samples after or during treated with Topoisomerase II inhibitors (22 patients)
