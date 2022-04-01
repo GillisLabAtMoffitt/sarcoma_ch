@@ -64,7 +64,8 @@ treatment <-
 Global_data <- 
   inner_join(sarcoma_patients %>% 
                distinct(mrn, specimen_collection_date, 
-                        date_of_diagnosis1, sample_type), 
+                        date_of_diagnosis1, sample_type,
+                        .keep_all = TRUE), 
              treatment, by = "mrn") %>% 
   # Create deidentified IDs
   mutate(rad = "sarcoma_study_") %>%
@@ -104,20 +105,32 @@ blood_patients <- blood_patients %>%
   mutate(have_good_presample_chemo = blood_bf_chemo,
          presample_date_chemo = case_when(
            blood_bf_chemo == "Yes"                                      ~ specimen_collection_date
+         ),
+         presample_id_chemo = case_when(
+           blood_bf_chemo == "Yes"                                             ~ sample_id
          )) %>% 
   mutate(days_from_presample_to_chemo = case_when(
     blood_bf_chemo == "Yes"                                             ~ interval(
       start = specimen_collection_date, end = treatment_start_date) /
       duration(n= 1, units = "days")
   )) %>% 
+  # mutate(presample_id_chemo = case_when(
+  #   blood_bf_chemo == "Yes"                                             ~ sample_id
+  # )) %>% 
   fill(have_good_presample_chemo, presample_date_chemo,
-       days_from_presample_to_chemo,
+       days_from_presample_to_chemo, presample_id_chemo,
        .direction = "updown") %>%
 
   mutate(blood_af_chemo = case_when(
     specimen_collection_date > treatment_end_date &
       treatment_line == "chemo_1"                                        ~ "Yes"
   )) %>%
+  mutate(postsample_id_chemo = case_when(
+    blood_af_chemo == "Yes"                                               ~ sample_id
+  )) %>% 
+  mutate(postsample_date_chemo = case_when(
+    blood_af_chemo == "Yes"                                               ~ specimen_collection_date
+  )) %>% 
   
   # Topoisomerase II
   mutate(blood_bf_topoII = case_when(
@@ -127,14 +140,20 @@ blood_patients <- blood_patients %>%
   mutate(have_good_presample_topo = blood_bf_topoII,
          presample_date_topo = case_when(
            blood_bf_topoII == "Yes"                                      ~ specimen_collection_date
+         ),
+         presample_id_topo = case_when(
+           blood_bf_topoII == "Yes"                                             ~ sample_id
          )) %>% 
   mutate(days_from_presample_to_topo = case_when(
     blood_bf_topoII == "Yes"                                             ~ interval(
       start = specimen_collection_date, end = treatment_start_date) /
       duration(n= 1, units = "days")
   )) %>% 
+  # mutate(presample_id_topo = case_when(
+  #   blood_bf_topoII == "Yes"                                             ~ sample_id
+  # )) %>% 
   fill(have_good_presample_topo, presample_date_topo,
-       days_from_presample_to_topo,
+       days_from_presample_to_topo, presample_id_topo,
        .direction = "updown") %>%
   ungroup() %>% 
   mutate(blood_af_topoII = case_when(
@@ -148,6 +167,14 @@ blood_patients <- blood_patients %>%
       specimen_collection_date < treatment_end_date &
       str_detect(treatment, topo_drugs)                                  ~ "Yes"
   )) %>%
+  mutate(postsample_id_topo = case_when(
+    blood_af_topoII == "Yes" |
+      blood_during_topoII == "Yes"                                       ~ sample_id
+  )) %>% 
+  mutate(postsample_date_topo = case_when(
+    blood_af_topoII == "Yes" |
+      blood_during_topoII == "Yes"                                       ~ specimen_collection_date
+  )) %>% 
   select(mrn, deidentified_patient_id, specimen_collection_date, 
          blood_bf_topoII, blood_af_topoII, blood_during_topoII, treatment, everything()) %>% 
   
@@ -159,15 +186,21 @@ blood_patients <- blood_patients %>%
   mutate(have_good_presample_alk = blood_bf_alk,
          presample_date_alk = case_when(
            blood_bf_alk == "Yes"                                        ~ specimen_collection_date
+         ),
+         presample_id_alk = case_when(
+           blood_bf_alk == "Yes"                                               ~ sample_id
          )) %>% 
   mutate(days_from_presample_to_alk = case_when(
     blood_bf_alk == "Yes"                                               ~ interval(
       start = specimen_collection_date, end = treatment_start_date) /
       duration(n= 1, units = "days")
   )) %>% 
+  # mutate(presample_id_alk = case_when(
+  #   blood_bf_alk == "Yes"                                               ~ sample_id
+  # )) %>% 
   group_by(mrn) %>% 
   fill(have_good_presample_alk, presample_date_alk,
-       days_from_presample_to_alk,
+       days_from_presample_to_alk, presample_id_alk,
        .direction = "updown") %>%
   ungroup() %>%
   mutate(blood_af_alk = case_when(
@@ -176,6 +209,12 @@ blood_patients <- blood_patients %>%
     specimen_collection_date > treatment_end_date &
       str_detect(treatment, alk_drugs)                                  ~ "Yes"
   )) %>%
+  mutate(postsample_id_alk = case_when(
+    blood_af_alk == "Yes"                                               ~ sample_id
+  )) %>% 
+  mutate(postsample_date_alk = case_when(
+    blood_af_alk == "Yes"                                               ~ specimen_collection_date
+  )) %>% 
   
   mutate(days_from_presample_to_drugs = case_when(
     blood_bf_topoII == "Yes" |
@@ -183,9 +222,17 @@ blood_patients <- blood_patients %>%
       start = specimen_collection_date, end = treatment_start_date) /
       duration(n= 1, units = "days")
   )) %>% 
+  mutate(days_from_drugstart_to_after_sample = case_when(
+    blood_af_topoII == "Yes" |
+      blood_during_topoII == "Yes" |
+      blood_af_alk == "Yes"                                             ~ interval(
+      start = treatment_start_date, end = specimen_collection_date) /
+      duration(n= 1, units = "days")
+  )) %>% 
   mutate(days_from_drugsend_to_after_sample = case_when(
     blood_af_topoII == "Yes" |
       blood_during_topoII == "Yes" |
+      blood_af_chemo == "Yes" |
       blood_af_alk == "Yes"                                             ~ interval(
       start = treatment_end_date, end = specimen_collection_date) /
       duration(n= 1, units = "days")
@@ -226,16 +273,28 @@ blood_patients <- blood_patients %>%
 ```{r}
 samples_chemo <- blood_patients %>%
   filter(have_good_presample_chemo == "Yes" & blood_af_chemo == "Yes") %>%
-  select(mrn, deidentified_patient_id, 
-         date_of_diagnosis1, sample_type, 
-         have_good_presample_chemo, blood_af_chemo, 
+  # Excluded patients by checking medical records (treatment not for sarcoma)
+  filter(deidentified_patient_id %in%
+           c("sarcoma_study_000007", "sarcoma_study_000014", "sarcoma_study_000084",
+             "sarcoma_study_000130", "sarcoma_study_000229", "sarcoma_study_000792",
+             "sarcoma_study_000813")) %>%
+  
+  select(#mrn, 
+         deidentified_patient_id, 
+         # date_of_diagnosis1, 
+         sample_type, 
+         have_good_presample_chemo, 
+         # presample_id_chemo, presample_date_chemo,
+         blood_af_chemo, 
+         # postsample_id_chemo, postsample_date_chemo,
          days_from_presample_to_chemo,
          days_from_drugsend_to_after_sample, treatment, 
-         treatment_start_date, treatment_end_date, 
-         duration_of_treatment) %>% 
-  distinct(mrn, .keep_all = TRUE)
+         # treatment_start_date, treatment_end_date, 
+         duration_of_treatment) # %>% 
+  # distinct(mrn, .keep_all = TRUE)
 
-write_csv(samples_chemo, "list of samples chemo.csv")
+# write_csv(samples_chemo, "list of sarcoma samples chemo.csv")
+# write_csv(samples_chemo, "list of sarcoma patients with samples chemo.csv")
 ```
 
 
@@ -245,34 +304,46 @@ Topoisomerase II inhibitors include etoposide, doxorubicin, daunorubicin, tenipo
 ```{r}
 samples_topo <- blood_patients %>% 
   filter(blood_af_topoII == "Yes" | blood_during_topoII == "Yes") %>%
-  select(mrn, deidentified_patient_id, sample_type, blood_bf_topoII, blood_during_topoII, 
-         blood_af_topoII, days_from_drugsend_to_after_sample, treatment, 
-         treatment_start_date, treatment_end_date, duration_of_treatment) %>% 
+  # select(mrn, deidentified_patient_id, date_of_diagnosis1,
+  #        sample_type, blood_bf_topoII, blood_during_topoII, 
+  #        blood_af_topoII, days_from_drugsend_to_after_sample, 
+  #        days_from_drugstart_to_after_sample, treatment, 
+  #        treatment_start_date, treatment_end_date, duration_of_treatment) %>% 
   # pivot_wider(id_cols = c(deidentified_patient_id),
   #             names_from = treatment_line, 
   #             values_from = treatment) %>% 
-  group_by(mrn, deidentified_patient_id, sample_type, blood_bf_topoII, blood_af_topoII,
-           blood_during_topoII, days_from_drugsend_to_after_sample, treatment_start_date, 
-           duration_of_treatment) %>% 
-  summarise_at(vars(treatment, treatment_end_date), str_c, collapse = "!") %>% 
-  ungroup() %>% 
-  separate(treatment, paste("regimen", 1:2, sep = "_"), 
-           sep = "!", remove = TRUE, 
-           extra = "warn", fill = "right") %>% 
-  
+  # group_by(mrn, deidentified_patient_id, sample_type, blood_bf_topoII, blood_af_topoII,
+  #          blood_during_topoII, days_from_drugsend_to_after_sample, 
+  #          days_from_drugstart_to_after_sample, treatment_start_date, 
+  #          duration_of_treatment) %>% 
+  # summarise_at(vars(treatment, treatment_end_date), str_c, collapse = "!") %>% 
+  # ungroup() %>% 
+  # separate(treatment, paste("regimen", 1:2, sep = "_"), 
+  #          sep = "!", remove = TRUE, 
+  #          extra = "warn", fill = "right") %>% 
+  # Excluded patients by checking medical records (treatment not for sarcoma)
   filter(!deidentified_patient_id %in% 
-           c("sarcoma_study_000153", "sarcoma_study_000155", "sarcoma_study_000164",
-             "sarcoma_study_000315", "sarcoma_study_000357", "sarcoma_study_000437",
+           c("sarcoma_study_000147", "sarcoma_study_000156", "sarcoma_study_000341",
+             "sarcoma_study_000420", "sarcoma_study_000536",
              "sarcoma_study_000559", "sarcoma_study_000861")) %>% 
-  select(#mrn, 
-         deidentified_patient_id, sample_type, #blood_bf_topoII, 
+  select(# mrn, 
+         deidentified_patient_id, 
+         # date_of_diagnosis1,
+         sample_type, 
+         # blood_bf_topoII, 
          blood_during_topoII, 
-         blood_af_topoII, days_from_drugsend_to_after_sample, 
-         starts_with("regimen"), 
+         blood_af_topoII, 
+         # postsample_id_topo, postsample_date_topo,
+         days_from_drugsend_to_after_sample, 
+         days_from_drugstart_to_after_sample,
+         treatment,
+         # starts_with("regimen"), 
          # treatment_start_date, treatment_end_date, 
-         duration_of_treatment)
+         duration_of_treatment) %>% 
+  arrange(deidentified_patient_id)
 
-# write_csv(samples_topo, "list of samples topo.csv")
+# write_csv(samples_topo, "list of sarcoma samples topo.csv")
+# write_csv(samples_topo, "list of sarcoma patients with samples topo.csv")
 ```
 
 <!-- # Patients with samples during treated with Topoisomerase II inhibitors (13 patients) -->
@@ -298,10 +369,14 @@ Alkylating agents include melphalan, cyclophosphamide, nitrogen mustard, chloram
 samples_alk <- blood_patients %>%
   filter(have_good_presample_alk == "Yes" & blood_af_alk == "Yes") %>%
 
-  select(mrn, deidentified_patient_id, date_of_diagnosis1, sample_type, have_good_presample_alk, blood_af_alk, 
+  select(mrn, deidentified_patient_id, date_of_diagnosis1, sample_type, have_good_presample_alk, 
+         presample_id_alk, presample_date_alk,
+         blood_af_alk, postsample_id_alk, postsample_date_alk,
          days_from_presample_to_alk, days_from_drugsend_to_after_sample, treatment, 
          treatment_start_date, treatment_end_date, duration_of_treatment) %>% 
-  group_by(mrn, deidentified_patient_id, date_of_diagnosis1, sample_type, have_good_presample_alk, blood_af_alk,
+  group_by(mrn, deidentified_patient_id, date_of_diagnosis1, sample_type, have_good_presample_alk, 
+           presample_id_alk, presample_date_alk,
+           blood_af_alk, postsample_id_alk, postsample_date_alk,
            days_from_presample_to_alk, days_from_drugsend_to_after_sample, 
            treatment_start_date, duration_of_treatment) %>% 
   summarise_at(vars(treatment, treatment_end_date), str_c, collapse = "!") %>% 
@@ -309,14 +384,22 @@ samples_alk <- blood_patients %>%
   separate(treatment, paste("regimen", 1:2, sep = "_"), 
            sep = "!", remove = TRUE, 
            extra = "warn", fill = "right") %>% 
+  # Excluded patients by checking medical records (treatment not for sarcoma)
   filter(!deidentified_patient_id %in% 
-           c("sarcoma_study_000095", "sarcoma_study_000214", "sarcoma_study_000899")) %>%  
-  select(#mrn, 
-         deidentified_patient_id, sample_type, 
-         have_good_presample_alk, blood_af_alk, 
+           c("sarcoma_study_000091", "sarcoma_study_000203", "sarcoma_study_000488", 
+             "sarcoma_study_000539", "sarcoma_study_000864")) %>%  
+  select(mrn, 
+         deidentified_patient_id, 
+         date_of_diagnosis1,
+         sample_type, 
+         have_good_presample_alk,
+         presample_id_alk, presample_date_alk,
+         blood_af_alk, 
+         postsample_id_alk, postsample_date_alk,
          days_from_presample_to_alk, days_from_drugsend_to_after_sample,
          starts_with("regimen"), 
          duration_of_treatment)
 
-write_csv(samples_alk, "list of samples alkylant.csv")
+# write_csv(samples_alk, "list of sarcoma samples alkylating.csv")
+# write_csv(samples_alk, "list of sarcoma patients with samples alkylating.csv")
 ```
