@@ -13,7 +13,7 @@ sarcoma_dna <- sarcoma_DNA %>%
   # add same sample/same date on the same row
   arrange(mrn, specimen_collection_date) %>% 
   # Summarize to have 1 sample/day per row and not 1 row for each aliquot of the same sample 
-  group_by(mrn, party_id, sample_family_id, specimen_collection_date, gender_cancer_registry) %>% 
+  group_by(mrn, party_id, specimen_collection_date, gender_cancer_registry) %>% 
   summarise_at(vars(sample_id, sample_type), str_c, collapse = "; ") %>%
   # separate(col = sample_id, paste("sample_id", 1:3, sep="_"), sep = "; ", extra = "drop", fill = "right")
   ungroup()
@@ -195,7 +195,9 @@ Chemot <- Chemot1 %>%
   distinct(mrn, chemotherapy_drug, chemotherapy_start_date, chemotherapy_end_date1, 
            .keep_all = TRUE) %>%  # 705976
   # select(-c(remove, date_of_diagnosis1, AC, AC_start_date, paclitaxel, pac_end_date)) %>% 
-  mutate(linenumber = row_number())
+  group_by(mrn) %>% 
+  mutate(linenumber = row_number()) %>% 
+  ungroup()
 
 
 # Chemot <- Chemot %>% 
@@ -578,7 +580,8 @@ Radiot <- Radiot %>%
 # Combine
 treatment <- bind_rows(Chemot, Immnunot, Radiot) %>% 
   left_join(., sarcoma_patients %>% 
-              select(mrn, date_of_diagnosis1), 
+              select(mrn, date_of_diagnosis1) %>% 
+              distinct(), 
             by = "mrn") %>% 
   filter(treatment_start_date > date_of_diagnosis1) %>% 
   arrange(mrn, treatment_start_date) %>% 
