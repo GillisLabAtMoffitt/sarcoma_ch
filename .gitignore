@@ -14,6 +14,7 @@
 *.html
 *.jpg
 *.csv
+*.xlsx
 *.rds
 *.pdf
 
